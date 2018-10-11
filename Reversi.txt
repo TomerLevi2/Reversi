@@ -1,0 +1,841 @@
+.data
+
+	space: .asciiz "  "
+	newline: .asciiz "\n"
+	
+  x: .byte 'X' #white, user
+  o: .byte 'O' #black, AI
+  o2: .byte 'O' ##secondary static o byte for comparison to check the turn
+  _: .byte '_' #underscore, space
+  
+  
+  userRow:	.word	8
+  userCol:	.word	9
+  promptRow:	.asciiz "\nPlease enter the row number you would like to change. "
+  promptRow1:	.asciiz "\nEnter 0 to end the game and see who won:  "
+  promptCol:	.asciiz "Please enter the column number you would like to change: "
+  here:		.asciiz "you are here"
+  
+  open: "Welcome to Reversi! Input the Row and then Column to place a piece on the board! Enter 0 to skip your turn. If you enter an invalid input, your turn will be skipped."
+  won: "Congratulations! You've won!"
+  lost: "You lost!"
+  tie: "It's a tie!"
+  invalid: "Your input was invalid. You lose your turn."
+  userIndex:	.word	8
+  
+  board: .byte ' ', '1', '2', '3', '4', '5', '6', '7', '8', ' ', '1', '_', '_', '_', '_', '_', '_', '_', '_', ' ', '2', '_', '_', '_', '_', '_', '_', '_', '_', ' ', '3', '_', '_', '_', '_', '_', '_', '_', '_', ' ', '4', '_', '_', '_', 'X', 'O', '_', '_', '_', ' ', '5', '_', '_', '_', 'O', 'X', '_', '_', '_', ' ', '6', '_', '_', '_', '_', '_', '_', '_', '_', ' ', '7', '_', '_', '_', '_', '_', '_', '_', '_', ' ', '8', '_', '_', '_', '_', '_', '_', '_', '_', ' ', ' '
+  
+############################################################################################
+#CODE STARTS HERE
+############################################################################################
+
+.text
+
+  
+###################################################################################Printing Method (prints ENTIRE array) 
+
+
+printBoard:
+  	li $v0, 4 #outputs error message
+	la $a0, newline
+	syscall
+  
+  ####declarations for local variables
+  	addi $t9, $zero, 10   #loads integer 10 in to $t9 register
+  	addi $t0, $zero, 0  #initializes index for printboard loop
+  	addi $t7, $zero, 1 #initializes index for printSpace loop
+  	addi $t6, $zero, 10 #loads integer 10 in to $t6 register
+  
+printRow:
+  
+	lb $t1, board($t0)  # loads byte of current array index to $t1
+  	addi $t0, $t0, 1   # increment $t0 index by 1
+  	
+ 	li  $v0, 11       # System call code for Print Character 
+  	move $a0, $t1     # loads current byte data into argument register (for printing)
+  	syscall
+  	
+  	li $v0, 4
+  	la $a0, space
+	  syscall
+  
+  	div $t0, $t9
+  	mfhi $t8
+  
+  	beq $t8, $zero, printSpace   ##branches to printSpace if $t0 % 10 = 0
+  
+  	j printRow
+  
+  
+printSpace:
+  
+  	beq $t7, $t6, getInput
+  
+  	li $v0, 4
+  	la $a0, newline
+		syscall
+  
+  	addi $t7, $t7, 1
+  
+ 	j printRow
+  
+  
+  ############################################################################# GET USER INPUT
+getInput:
+	
+	#############branch statement that will skip to AI turn if user has already gone!#############################
+	lb $s7, x  ## loads current value of x (could be 'X' or 'O',depending on which turn is active
+	lb $s6, o2 ## loads static 'O'
+	beq $s6, $s7, AIturn ## branches to AI turn if x has been flipped to o
+	
+	
+	
+	
+  
+	li $v0, 4 #outputs prompt to get row
+	la $a0, promptRow
+	syscall
+  
+  li $v0, 4 #outputs prompt to get row
+	la $a0, promptRow1
+	syscall
+	
+	li $v0, 5 #syscall in read an integer
+	syscall
+	
+	move $t8, $v0 #moves value of $v0 to $t2
+	sb $t8, userRow #stores value of $t2 in row
+  
+  beqz $t8, CheckWin
+  
+	li $v0, 4 #outputs prompt to get column
+	la $a0, promptCol
+	syscall
+	
+	li $v0, 5 #reads user input
+	syscall
+
+	
+	move $t9, $v0 #moves value of $v0 to $t1
+	sb $t9, userCol #stores value of $t1 in col
+	
+	
+	
+  
+
+  
+  
+############################################################################CALCULATE THE INDEX
+  	mult $t8, $t6	#Multiplies row by 10
+  	mflo $t7  ## saves result to $t7
+  	add $t7, $t7, $t9	#adds column to calculated value
+  	sb $t7, userIndex
+  	
+  	j InvalidInput
+  	
+  	
+  	
+  	
+  	
+ AIturn:
+ 	
+	addi $t0, $zero, 11 ##resets $t0 (index)
+	addi $t7, $zero, 0
+	addi $t4, $zero, 10
+	addi $t8, $zero, 0
+	addi $t9, $zero, 0
+
+AIcycle:
+	
+	div $t0, $t4
+	mfhi $t9  ## modulus stored to $t9 (column)
+	mflo $t8  ##quotient stored to $t8 (row)
+	
+	move $t7, $t0  ## moves index to $t7
+  
+  addi $s1, $zero, 0  ##resets $s1 to 0
+	addi $s2, $zero, 0  ## resets $s2 to 0
+	lb $s1, board($t0)  ## loads current character of array at index $t0
+	lb $s2, _  ## loads underscore to $s2
+	
+	addi $t0, $t0, 1 ## increments index by 1
+	
+	beqz $t9, AIcycle  ## skips testing if current board choice is column 0
+  bne $s1, $s2, AIcycle ### jumps back to AIcycle
+	
+	j LogicalStatements   ##tests current AI board choice against validity checker
+	
+
+InvalidInput:
+	
+  slti $t4, $t8, 1	#checks if the input is less than 0
+	beqz $t4, checkInput2		#if the input is greater than 0, the loop starts
+  
+  slti $t4, $t9, 1	#checks if the input is less than 0
+	beqz $t4, checkInput2		#if the input is greater than 0, the loop starts
+  
+	li $v0, 4 #outputs error message
+	la $a0, invalid
+	syscall
+	
+	li $v0, 4 #outputs error message
+	la $a0, newline
+	syscall
+
+ 	 j Lose
+ 	
+checkInput2:
+ 	sgt $t4, $t8, 8	#checks if the input is less than 0
+	beqz $t4, LogicalStatements		#if the input is greater than 0, the loop starts
+  
+  sgt $t4, $t9, 8	#checks if the input is less than 0
+	beqz $t4, LogicalStatements		#if the input is greater than 0, the loop starts
+  
+	li $v0, 4 #outputs prompt to get row
+	la $a0, invalid
+	syscall
+   
+ 	 j Lose
+
+LogicalStatements:
+
+	addi $t1, $zero, 0
+
+checkAdj:
+  #-11,-10,-9,-1,1,9,10,11 for user input ($t7)
+  #check x adjacency
+  
+   adjUpLeft:
+   	addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+   	addi $t6, $zero, 0
+   	addi $t6, $t7, -11 #gets the value of the space up and to the left of the address entered by the user
+        lb $t4, board($t6) #loads what is in that address
+        lb $t5, o #gets the value of x
+        bne $t5, $t4, adjUp #if there is no x up and to the left of the space entered, 
+        
+        checkUpLeft:
+        addi $t6, $zero, 0
+        addi $t6, $t7, -11 #recalculates $t6, the space adjacent to what the user enters
+    		
+        Loop1:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+        addi $t5, $zero, 0
+        lb $t4, board($t6) #loads what is in that space into $t4
+        lb $t5, o #loads o, the user's variable, into $t5
+        beq $t4, $t5, findX1 #if there is a o in the index, the codes jumps to the next method
+        slti $t3, $t6, 11 #if there is no more room, the code jumps to the next method
+        beqz $t3, adjUp
+        addi $t6, $t6, -11 #if not, the code takes off the right amount to progress up and left
+        j Loop1
+        
+        findX1:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+        addi $t5, $zero, 0
+        lb $t4, board($t6) #loads what is in that space into $t4
+        lb $t5, x #loads x, the user's variable, into $t5
+        beq $t4, $t5, fillUpLeft #if there is an x that sandwiches the o, then it jumps to the next method
+        slti $t3, $t6, 11 #if there is no more room, the code jumps to the next method
+        beqz $t3, adjUp
+        addi $t6, $t6, -11 #if not, the code takes off the right amount to progress up and left
+        j findX1
+        
+        fillUpLeft:
+        #-11
+        addi $t1, $t1, 1
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        addi $t6, $zero, 0
+        addi $t6, $t7, -11 #recalculates $t6, the space adjacent to what the user enters
+  	lb $t5, x  ## loads x to register $t1
+	sb $t5, board($t7)    ##loads array at index
+	
+        Loopf1:
+        addi $t4, $zero, 0
+   			addi $t5, $zero, 0
+        lb $t4, board($t6)#loads what is in that space into $t4
+        lb $t5, x #loads o, the user's variable, into $t5
+        beq $t4, $t5, adjUp #if there is a o in the index, the codes jumps to the next method
+        sb $t5, board($t6)    #if not, then it stores an o in the right index of the board
+        addi $t6, $t6, -11 #if not, the code takes off the right amount to progress up and left
+        j Loopf1
+        
+        
+        
+   	adjUp:
+   	addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+   	addi $t6, $zero, 0
+    	add $t6, $t7, -10
+    	slti $t3, $t6, 10 #if there is no more room, the code jumps to the next method
+        bnez $t3, adjUpRight
+        lb $t4, board($t6)
+        lb $t5, o
+        bne $t5, $t4, adjUpRight
+        
+        checkUp:
+        addi $t6, $zero, 0
+    	addi $t6, $t7, -10
+        
+        Loop2:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+   			addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, o
+        beq $t4, $t5, findX2
+        slti $t3, $t6, 10 #if there is no more room, the code jumps to the next method
+        bnez $t3, adjUpRight
+        addi $t6, $t6, -10
+        j Loop2
+        
+        findX2:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+   			addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, x
+        beq $t4, $t5, fillUp
+        slti $t3, $t6, 10 #if there is no more room, the code jumps to the next method
+        bnez $t3, adjUpRight
+        addi $t6, $t6, -10
+        j findX2
+        
+        fillUp:
+        addi $t1, $t1, 1
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        addi $t6, $zero, 0
+        add $t6, $t7, -10
+        lb $t5, x  ## loads x to register $t1
+	sb $t5, board($t7)    ##loads array at index
+    		#-10
+  
+        
+        Loopf2:
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, x
+        beq $t4, $t5, adjUpRight
+        lb $t5, x  ## loads x to register $t1 
+	sb $t5, board($t6)    ##loads array at index
+        addi $t6, $t6, -10
+        
+        j Loopf2
+    
+        
+        
+    adjUpRight:
+   	addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+   	addi $t6, $zero, 0
+    	add $t6, $t7, -9
+    	slti $t3, $t6, 9 #if there is no more room, the code jumps to the next method
+        bnez $t3, adjLeft
+        lb $t4, board($t6)
+        lb $t5, o
+        bne $t5, $t4, adjLeft
+        
+        checkUpRight:
+        addi $t6, $zero, 0
+    	addi $t6, $t7, -9
+        
+        Loop3:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, o
+        beq $t4, $t5, findX3
+        slti $t3, $t6, 9 #if there is no more room, the code jumps to the next method
+        bnez $t3, adjLeft
+        addi $t6, $t6, -9
+        j Loop3
+        
+        findX3:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, x
+        beq $t4, $t5, fillUpRight
+        slti $t3, $t6, 9 #if there is no more room, the code jumps to the next method
+        bnez $t3, adjLeft
+        addi $t6, $t6, -9
+        j findX3
+        
+        fillUpRight:
+        addi $t1, $t1, 1
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        addi $t6, $zero, 0
+        add $t6, $t7, -9
+        lb $t5, x  ## loads x to register $t1
+	sb $t5, board($t7)    ##loads array at index
+    		#-10
+  
+        
+        Loopf3:
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, x
+        beq $t4, $t5, adjLeft
+        lb $t5, x  ## loads x to register $t1 
+	sb $t5, board($t6)    ##loads array at index
+        addi $t6, $t6, -9
+        
+        j Loopf3
+        
+    adjLeft:
+   	addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+    	addi $t6, $zero, 0
+    	addi $t6, $t7, -1
+        lb $t4, board($t6)
+        lb $t5, o
+        bne $t5, $t4, adjRight
+        
+        checkLeft:
+        addi $t6, $zero, 0
+        addi $t6, $t7, -1
+    		
+        Loop4:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+   			addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, o
+        beq $t4, $t5, findX4
+        
+        div $t5, $t6, 10 #divides input by 10
+	mfhi, $t3 #finds remainder
+        beqz $t3, adjRight
+        
+        addi $t6, $t6, -1
+        j Loop4
+        
+        findX4:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+   			addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, x
+        beq $t4, $t5, fillLeft
+        
+        div $t5, $t6, 10 #divides input by 10
+				mfhi, $t3 #finds remainder
+        beqz $t3, adjRight
+        
+        addi $t6, $t6, -1
+        j findX4
+        
+        
+        fillLeft:
+        #-1
+	addi $t1, $t1, 1
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        addi $t6, $zero, 0
+        add $t6, $t7, -1
+        lb $t5, x  ## loads x to register $t1
+	sb $t5, board($t7)    ##loads array at index
+  
+        Loopf4:
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, x
+        beq $t4, $t5, adjRight
+        sb $t5, board($t6)    ##loads array at index
+        addi $t6, $t6, -1
+        j Loopf4
+        
+	adjRight:
+	addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+	addi $t6, $zero, 0
+    	addi $t6, $t7, 1
+        lb $t4, board($t6)
+        lb $t5, o
+        bne $t5, $t4, adjDownLeft
+        
+        checkRight:
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        addi $t6, $zero, 0
+        addi $t6, $t7, 1
+    		
+        Loop5:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+   			addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, o
+        
+        beq $t4, $t5, findX5
+        
+        div $t5, $t6, 10 #divides input by 10
+				mfhi, $t3 #finds remainder
+        addi $t4, $zero, 9
+        beq $t3, $t4, adjDownLeft
+        
+        addi $t6, $t6, 1
+        j Loop5
+        
+        findX5:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+   			addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, x
+        
+        beq $t4, $t5, fillRight
+        
+        div $t5, $t6, 10 #divides input by 10
+				mfhi, $t3 #finds remainder
+        addi $t4, $zero, 9
+        beq $t3, $t4, adjDownLeft
+        
+        addi $t6, $t6, 1
+        j findX5
+        
+        
+        fillRight:
+        #1
+        addi $t1, $t1, 1
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        addi $t6, $zero, 0
+        add $t6, $t7, 1
+        lb $t5, x  ## loads x to register $t1
+	sb $t5, board($t7)    ##loads array at index
+  
+        Loopf5:
+        addi $t4, $zero, 0
+   			addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, x
+        beq $t4, $t5, adjDownLeft
+        sb $t5, board($t6)
+        addi $t6, $t6, 1
+        j Loopf5
+        
+   adjDownLeft:
+	
+	
+   addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+   addi $t6, $zero, 0
+    	sgt $t4, $t7, 90
+        beq $t4, 1, fillSandwich
+    		
+        addi $t6, $t7, 9
+        lb $t4, board($t6)
+        lb $t5, o
+        bne $t5, $t4, adjDown
+        
+        checkDownLeft:
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        addi $t6, $zero, 0
+        addi $t6, $t7, 9
+    		
+        Loop6:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+   			addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, o
+        beq $t4, $t5, findX6
+        sgt $t3, $t6, 80
+        beq $t3, 1, adjDown
+        addi $t6, $t6, 9
+        j Loop6
+        
+        findX6:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+   			addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, x
+        beq $t4, $t5, fillDownLeft
+        sgt $t3, $t6, 80
+        beq $t3, 1, adjDown
+        addi $t6, $t6, 9
+        j findX6
+        
+        fillDownLeft:
+        #9
+	
+        addi $t1, $t1, 1
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        addi $t6, $zero, 0
+        add $t6, $t7, 9
+        lb $t5, x  ## loads x to register $t1
+	sb $t5, board($t7)    ##loads array at index
+  
+        Loopf6:
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, x
+        beq $t4, $t5, adjDown
+        sb $t5,board($t6)
+        addi $t6, $t6, 9
+        j Loopf6
+        
+    adjDown:
+    addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+    addi $t6, $zero, 0
+    	add $t6, $t7, 10
+        lb $t4, board($t6)
+        lb $t5, o
+        bne $t5, $t4, adjDownRight
+        
+        checkDown:
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        addi $t6, $zero, 0
+        addi $t6, $t7, 10
+    		
+        Loop7:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+        addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, o
+        beq $t4, $t5, findX7
+        sgt $t3, $t6, 80
+        beq $t3, 1, adjDownRight
+        addi $t6, $t6, 10
+        j Loop7
+        
+				findX7:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+   			addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, x
+        beq $t4, $t5, fillDown
+        sgt $t3, $t6, 80
+        beq $t3, 1, adjDownRight
+        addi $t6, $t6, 10
+        j findX7        
+        
+        fillDown:
+        addi $t1, $t1, 1
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        #-10
+        addi $t6, $zero, 0
+        addi $t6, $t7, 10
+        lb $t5, x  ## loads x to register $t1
+	sb $t5, board($t7)    ##loads array at index
+  
+        Loopf7:
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, x
+        beq $t4, $t5, adjDownRight
+        sb $t5, board($t6)
+        addi $t6, $t6, 10
+        j Loopf7
+        
+        
+    adjDownRight:
+	addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+    	addi $t6, $zero, 0
+    	addi $t6, $t7, 11
+        lb $t4, board($t6)
+        lb $t5, o
+        bne $t5, $t4, fillSandwich
+        
+        checkDownRight:
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        addi $t6, $zero, 0
+        addi $t6, $t7, 11
+    		
+        Loop8:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+   			addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, o
+        beq $t4, $t5, findX8
+        sgt $t3, $t6, 80
+        beq $t3, 1, fillSandwich
+        addi $t6, $t6, 11
+        j Loop8
+        
+        findX8:
+        addi $t3, $zero, 0
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, x
+        beq $t4, $t5, fillDownRight
+        sgt $t3, $t6, 80
+        beq $t3, 1, fillSandwich
+        addi $t6, $t6, 11
+        j findX8
+        
+        fillDownRight:
+        addi $t1, $t1, 1
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        #-10
+        addi $t6, $zero, 0
+        addi $t6, $t7, 11
+        lb $t5, x  ## loads x to register $t1
+	sb $t5, board($t7)    ##loads array at index
+  
+        Loopf8:
+        addi $t4, $zero, 0
+   	addi $t5, $zero, 0
+        lb $t4, board($t6)
+        lb $t5, x
+        beq $t4, $t5, fillSandwich
+        sb $t5, board($t6)
+        addi $t6, $t6, 11
+        j Loopf8
+    
+    
+  checkSandwich:
+  	#check if there is an x or an o
+    #if x, continue the loop
+    #if o, go to fill
+    #if neither, then invalid
+  
+  fillSandwich:
+  
+	
+  	#insert user tile and fill sandwich
+  	bnez $t1, somethingPrinted #checks to see if the input got to a fill stage
+  	beq $t7, 89, flipper
+
+  	
+  	beq $s6, $s7, AIcycle  ######################ADDED BY SEAN, If current turn is AI, will branch back to AIcycle in invalid move was attempted
+  	
+  	li $v0, 4 #outputs error message
+	la $a0, invalid
+	syscall
+	
+	li $v0, 4 #outputs error message
+	la $a0, newline
+	syscall
+	
+	addi $t1, $zero, 0 #resets $t0
+  	
+  	
+ somethingPrinted:
+  	
+  	
+ flipper: #### method that changes the current turn by flipping the value of x to o and vice versa
+
+	addi $t3, $zero, 0 ##reinitialize t3
+	addi $t4, $zero, 0 ##reinitialize t4
+
+ 	 	
+#######FLIPS X and O ####################################################
+  lb $t3, x #loads "X" to $t3
+	lb $t4, o #loads "O" to $t4
+	sb $t4, x #saves "X" to o
+	sb $t3, o #saves "O" to x 
+	
+	beq $t7, 89, CheckWin #branches if AI went to last space on the board
+  	
+
+    j printBoard
+CheckWin:
+	#count total number of O's and X's
+  #no O's, jump to Lose
+  #no X's, jump to Win
+  #once the board is full.
+  #count up the number of o's
+  #if there are 64 o's, the 
+  #user wins
+  
+    addi $t0,$zero,0 #slt (either 1 or 0)
+    addi $t1,$zero,0 #o
+    addi $t2,$zero,0 #x
+    addi $t3,$zero,0 #counter for o
+    addi $t4,$zero,0 #counter for x
+    addi $t5,$zero,0 #value within the array
+    addi $t6,$zero,-1 #index
+  wincheck:    
+    addi $t6,$t6,1
+    beq $t6, 89, count
+    lb $t1, o
+    lb $t2, x
+    lb $t5, board($t6)
+    beq $t1,$t5,itiso
+    beq $t2,$t5,itisx
+    j wincheck
+  itiso:
+  	addi $t3,$t3,1
+    bne $t6, 89,wincheck
+  itisx:
+  	addi $t4,$t4,1
+    bne $t6, 89,wincheck
+  count:
+    beq $t3,$t4, Tie
+    slt $t0, $t3, $t4
+    beq $t0, 1, Win
+    beq $t0, 0, Lose
+
+  Tie:
+  	li $v0, 4 #outputs win message
+	la $a0, tie
+	syscall
+	j Exit
+ 
+
+  Win:
+  li $v0, 4 #outputs win message
+	la $a0, won
+	syscall
+  #play win sound
+  			la $v0, 31
+        la $a0, 70
+        la $a1, 3000
+        la $a2, 5
+        la $a3, 70
+        syscall
+        la $a0, 72
+        la $a1, 3000
+        la $a2, 5
+        la $a3, 70
+        syscall
+  
+  j Exit  
+  Lose:
+  li $v0, 4 #outputs lose message
+	la $a0, lost
+	syscall
+  #play lose sound
+  			la $v0, 31
+        la $a0, 43
+        la $a1, 3000
+        la $a2, 5
+        la $a3, 70
+        syscall
+        la $a0, 41
+        la $a1, 3000
+        la $a2, 5
+        la $a3, 70
+        syscall
+  j Exit
+  
+### PROGRAM EXIT #####################################################  
+Exit:
+	li $v0, 10 		#exits program
+  syscall

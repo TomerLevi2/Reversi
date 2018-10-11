@@ -1,0 +1,18 @@
+USER MANUAL 
+VIDEO OF GAME IN THE COMMENTS OF THE SUBMISSION AND AT THE END OF THE PROJECT REPORT
+#####################################################
+RULES:
+--------------------
+You are the “X”. Your opponent is the “O”.  On your turn, you place one piece on the board. 
+You must place the piece so that an opponent's piece, or a row of opponent's pieces, is sandwiched by your pieces. 
+All of the opponent's pieces between your pieces become your pieces.
+Your goal is to have more pieces than your opponent by the end of the match, which happens when the player hits 0, 
+or the board is filled.
+
+HOW TO PLAY
+-------------------------
+The player goes first. Once the program begins, enter a row number, and hit enter. Then, enter a column number, 
+followed by enter. This will make your move, and the AI will automatically make its move afterwards. 
+Repeat until the game is terminated or completed.
+#############################
+Enjoy our Reversi game!
